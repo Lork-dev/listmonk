@@ -8,14 +8,12 @@ RUN yarn build
 
 # ── Stage 2: Build Vue frontend ───────────────────────────────────────────────
 FROM node:20-alpine AS frontend
-WORKDIR /app/frontend
-# postinstall копирует altcha в ../static/public/static/ — создаём директорию заранее
-RUN mkdir -p /app/static/public/static
-COPY frontend/package.json frontend/yarn.lock ./
-RUN yarn install --frozen-lockfile
-COPY frontend/ ./
-COPY --from=email-builder /app/frontend/email-builder/dist ./public/static/email-builder
-RUN yarn build
+WORKDIR /app
+# postinstall копирует altcha в ../static/public/static/ — создаём заранее
+RUN mkdir -p static/public/static
+COPY frontend/ frontend/
+COPY --from=email-builder /app/frontend/email-builder/dist frontend/public/static/email-builder
+RUN cd frontend && yarn install --frozen-lockfile && yarn build
 
 # ── Stage 3: Build Go binary ──────────────────────────────────────────────────
 FROM golang:1.26-alpine AS builder
@@ -27,6 +25,7 @@ RUN go mod download
 
 COPY . .
 COPY --from=frontend /app/frontend/dist ./frontend/dist
+COPY --from=frontend /app/static/public/static ./static/public/static
 
 # Build binary
 RUN CGO_ENABLED=0 go build -o listmonk \
