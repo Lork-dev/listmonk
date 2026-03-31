@@ -1,5 +1,5 @@
 # ── Stage 1: Build email-builder ─────────────────────────────────────────────
-FROM node:18-alpine AS email-builder
+FROM node:20-alpine AS email-builder
 WORKDIR /app/frontend/email-builder
 COPY frontend/email-builder/package.json frontend/email-builder/yarn.lock ./
 RUN yarn install --frozen-lockfile
@@ -7,7 +7,7 @@ COPY frontend/email-builder/ ./
 RUN yarn build
 
 # ── Stage 2: Build Vue frontend ───────────────────────────────────────────────
-FROM node:18-alpine AS frontend
+FROM node:20-alpine AS frontend
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/yarn.lock ./
 RUN yarn install --frozen-lockfile
