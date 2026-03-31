@@ -1,0 +1,39 @@
+services:
+  listmonk-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: listmonk
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: listmonk
+    volumes:
+      - listmonk-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U listmonk"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  listmonk:
+    image: ghcr.io/lork-dev/listmonk:latest
+    restart: unless-stopped
+    depends_on:
+      listmonk-db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:9000:9000"
+    environment:
+      LISTMONK_app__address: "0.0.0.0:9000"
+      LISTMONK_app__admin_username: ${ADMIN_USERNAME}
+      LISTMONK_app__admin_password: ${ADMIN_PASSWORD}
+      LISTMONK_db__host: listmonk-db
+      LISTMONK_db__port: 5432
+      LISTMONK_db__user: listmonk
+      LISTMONK_db__password: ${DB_PASSWORD}
+      LISTMONK_db__database: listmonk
+      LISTMONK_db__ssl_mode: disable
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+    command: ["./listmonk", "--install", "--idempotent", "--yes", "--config", ""]
+
+volumes:
+  listmonk-db-data:

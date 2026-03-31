@@ -182,6 +182,27 @@
       </b-tab-item><!-- campaign -->
 
       <b-tab-item :label="$t('campaigns.content')" icon="text" :disabled="isNew" value="content">
+
+        <!-- AI Generate Panel -->
+        <div v-if="canEdit" class="ai-generate-panel box mb-4" style="background:#f0f4ff;border:1px solid #c7d7fa;">
+          <div class="is-flex is-align-items-center mb-2">
+            <b-icon icon="robot-outline" type="is-info" class="mr-2" />
+            <strong class="is-size-6">Сгенерировать письмо с AI</strong>
+          </div>
+          <b-field>
+            <b-input v-model="aiPrompt" type="textarea" rows="3"
+              placeholder="Опишите письмо: тема, аудитория, цель, тон. Например: «Поздравляем с Новым годом, напоминаем о скидке 20% до 31 января, аудитория — активные пользователи»"
+              :disabled="aiLoading" />
+          </b-field>
+          <b-field>
+            <b-button type="is-info" icon-left="robot-outline" :loading="aiLoading"
+              :disabled="!aiPrompt.trim()" @click="onAIGenerate">
+              Сгенерировать
+            </b-button>
+            <span v-if="aiError" class="ml-3 has-text-danger is-size-7">{{ aiError }}</span>
+          </b-field>
+        </div>
+
         <editor v-if="data.id" v-model="form.content" :id="data.id" :title="data.name" :disabled="!canEdit"
           :templates="templates" :content-types="contentTypes" />
 
@@ -355,6 +376,11 @@ export default Vue.extend({
       isEditing: false,
       isHeadersVisible: false,
       isAttachFieldVisible: false,
+
+      // AI generation
+      aiPrompt: '',
+      aiLoading: false,
+      aiError: '',
       isAttachModalOpen: false,
       isPreviewingArchive: false,
       activeTab: 'campaign',
@@ -404,6 +430,30 @@ export default Vue.extend({
 
     onToggleArchivePreview() {
       this.isPreviewingArchive = !this.isPreviewingArchive;
+    },
+
+    async onAIGenerate() {
+      this.aiLoading = true;
+      this.aiError = '';
+      try {
+        const resp = await fetch('/api/ai/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: this.aiPrompt }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.message || `Ошибка ${resp.status}`);
+        }
+        const data = await resp.json();
+        if (data.subject) this.form.subject = data.subject;
+        if (data.body) this.form.content = { ...this.form.content, body: data.body };
+        this.$buefy.toast.open({ message: 'Письмо сгенерировано!', type: 'is-success' });
+      } catch (e) {
+        this.aiError = e.message || 'Не удалось сгенерировать';
+      } finally {
+        this.aiLoading = false;
+      }
     },
 
     onAddAltBody() {

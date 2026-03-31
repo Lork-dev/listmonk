@@ -1,0 +1,55 @@
+# ── Stage 1: Build email-builder ─────────────────────────────────────────────
+FROM node:18-alpine AS email-builder
+WORKDIR /app/frontend/email-builder
+COPY frontend/email-builder/package.json frontend/email-builder/yarn.lock ./
+RUN yarn install --frozen-lockfile
+COPY frontend/email-builder/ ./
+RUN yarn build
+
+# ── Stage 2: Build Vue frontend ───────────────────────────────────────────────
+FROM node:18-alpine AS frontend
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/yarn.lock ./
+RUN yarn install --frozen-lockfile
+COPY frontend/ ./
+COPY --from=email-builder /app/frontend/email-builder/dist ./public/static/email-builder
+RUN yarn build
+
+# ── Stage 3: Build Go binary ──────────────────────────────────────────────────
+FROM golang:1.23-alpine AS builder
+RUN apk --no-cache add make git
+
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+COPY --from=frontend /app/frontend/dist ./frontend/dist
+
+# Build binary
+RUN CGO_ENABLED=0 go build -o listmonk \
+    -ldflags="-s -w -X 'main.buildString=lork-custom' -X 'main.versionString=lork'" \
+    cmd/*.go
+
+# Install stuffbin and embed static assets
+RUN go install github.com/knadh/stuffbin/...
+RUN stuffbin -a stuff -in listmonk -out listmonk \
+    config.toml.sample \
+    "schema.sql" "queries:/queries" "permissions.json" \
+    "static/public:/public" \
+    "static/email-templates" \
+    "frontend/dist:/admin" \
+    "i18n:/i18n"
+
+# ── Stage 4: Final image ──────────────────────────────────────────────────────
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates tzdata shadow su-exec
+
+WORKDIR /listmonk
+COPY --from=builder /app/listmonk .
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+EXPOSE 9000
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["./listmonk"]

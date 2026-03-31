@@ -1,0 +1,121 @@
+name: Build & Deploy listmonk
+
+on:
+  push:
+    branches:
+      - lork
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.lork
+          push: true
+          tags: ghcr.io/lork-dev/listmonk:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    timeout-minutes: 10
+
+    steps:
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p 22 -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+
+      - name: Write .env
+        env:
+          DB_PASSWORD: ${{ secrets.LISTMONK_DB_PASSWORD }}
+          ADMIN_USERNAME: ${{ secrets.LISTMONK_ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.LISTMONK_ADMIN_PASSWORD }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          cat > /tmp/listmonk.env << EOF
+          DB_PASSWORD=${DB_PASSWORD}
+          ADMIN_USERNAME=${ADMIN_USERNAME}
+          ADMIN_PASSWORD=${ADMIN_PASSWORD}
+          DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+          EOF
+
+      - name: Copy files to server
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o IdentitiesOnly=yes \
+            /tmp/listmonk.env \
+            lork-deploy@${SERVER_HOST}:/srv/lork/listmonk/.env
+
+      - name: Deploy
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 \
+            -o StrictHostKeyChecking=no \
+            -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 \
+            lork-deploy@${SERVER_HOST} << 'DEPLOY'
+            set -euo pipefail
+            DEPLOY_DIR="/srv/lork/listmonk"
+            mkdir -p "$DEPLOY_DIR"
+            cd "$DEPLOY_DIR"
+
+            echo "==> Pull docker-compose file"
+            REPO="git@github-listmonk:Lork-dev/listmonk.git"
+            if [ -d ".git" ]; then
+              git fetch origin lork
+              git reset --hard origin/lork
+            else
+              git clone --branch lork "$REPO" .
+            fi
+
+            echo "==> Pull image"
+            docker compose -f docker-compose.lork.yml pull
+
+            echo "==> Up"
+            docker compose -f docker-compose.lork.yml up -d
+
+            echo "==> Healthcheck"
+            sleep 8
+            for i in $(seq 1 10); do
+              if curl -fsS http://127.0.0.1:9000/api/health > /dev/null; then
+                echo "Healthcheck OK"
+                break
+              fi
+              [ "$i" -eq 10 ] && { echo "Healthcheck failed"; exit 1; }
+              sleep 3
+            done
+
+            echo "==> Done"
+          DEPLOY
