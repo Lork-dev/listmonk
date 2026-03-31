@@ -9,6 +9,8 @@ RUN yarn build
 # ── Stage 2: Build Vue frontend ───────────────────────────────────────────────
 FROM node:20-alpine AS frontend
 WORKDIR /app/frontend
+# postinstall копирует altcha в ../static/public/static/ — создаём директорию заранее
+RUN mkdir -p /app/static/public/static
 COPY frontend/package.json frontend/yarn.lock ./
 RUN yarn install --frozen-lockfile
 COPY frontend/ ./
