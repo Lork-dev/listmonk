@@ -16,7 +16,7 @@ COPY --from=email-builder /app/frontend/email-builder/dist ./public/static/email
 RUN yarn build
 
 # ── Stage 3: Build Go binary ──────────────────────────────────────────────────
-FROM golang:1.23-alpine AS builder
+FROM golang:1.26-alpine AS builder
 RUN apk --no-cache add make git
 
 WORKDIR /app
