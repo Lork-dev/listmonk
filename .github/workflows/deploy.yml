@@ -69,13 +69,19 @@ jobs:
           DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
           EOF
 
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Copy files to server
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
         run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o IdentitiesOnly=yes \
+            lork-deploy@${SERVER_HOST} "mkdir -p /srv/lork/listmonk"
           scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o IdentitiesOnly=yes \
             /tmp/listmonk.env \
-            lork-deploy@${SERVER_HOST}:/srv/lork/listmonk/.env
+            docker-compose.lork.yml \
+            lork-deploy@${SERVER_HOST}:/srv/lork/listmonk/
 
       - name: Deploy
         env:
@@ -87,18 +93,8 @@ jobs:
             -o ServerAliveInterval=30 \
             lork-deploy@${SERVER_HOST} << 'DEPLOY'
             set -euo pipefail
-            DEPLOY_DIR="/srv/lork/listmonk"
-            mkdir -p "$DEPLOY_DIR"
-            cd "$DEPLOY_DIR"
-
-            echo "==> Pull docker-compose file"
-            REPO="git@github-listmonk:Lork-dev/listmonk.git"
-            if [ -d ".git" ]; then
-              git fetch origin lork
-              git reset --hard origin/lork
-            else
-              git clone --branch lork "$REPO" .
-            fi
+            cd /srv/lork/listmonk
+            mv listmonk.env .env
 
             echo "==> Pull image"
             docker compose -f docker-compose.lork.yml pull
