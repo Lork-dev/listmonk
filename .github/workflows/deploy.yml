@@ -61,12 +61,14 @@ jobs:
           ADMIN_USERNAME: ${{ secrets.LISTMONK_ADMIN_USERNAME }}
           ADMIN_PASSWORD: ${{ secrets.LISTMONK_ADMIN_PASSWORD }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
           cat > /tmp/listmonk.env << EOF
           DB_PASSWORD=${DB_PASSWORD}
           ADMIN_USERNAME=${ADMIN_USERNAME}
           ADMIN_PASSWORD=${ADMIN_PASSWORD}
           DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+          GHCR_TOKEN=${GHCR_TOKEN}
           EOF
 
       - name: Checkout
@@ -86,6 +88,7 @@ jobs:
       - name: Deploy
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
           ssh -i ~/.ssh/id_ed25519 \
             -o StrictHostKeyChecking=no \
@@ -95,6 +98,10 @@ jobs:
             set -euo pipefail
             cd /srv/lork/listmonk
             mv listmonk.env .env
+
+            echo "==> Login to GHCR"
+            GHCR_TOKEN=$(grep '^GHCR_TOKEN=' .env | cut -d= -f2- | tr -d ' ')
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u lork-deploy --password-stdin
 
             echo "==> Pull image"
             docker compose -f docker-compose.lork.yml pull
