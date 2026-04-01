@@ -345,8 +345,7 @@
       :archive-meta="form.archiveMetaStr" :title="data.title" :content-type="data.contentType"
       :template-id="form.archiveTemplateId" is-post is-archive />
     <!-- AI generation modal -->
-    <b-modal v-model="isAiModalOpen" has-modal-card trap-focus :destroy-on-hide="false" aria-role="dialog"
-      aria-modal>
+    <b-modal v-model="isAiModalOpen" has-modal-card trap-focus :destroy-on-hide="false">
       <div class="modal-card" style="width: 520px">
         <header class="modal-card-head">
           <p class="modal-card-title">✨ Сгенерировать письмо с AI</p>
