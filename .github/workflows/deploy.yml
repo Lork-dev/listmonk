@@ -109,15 +109,15 @@ jobs:
             echo "==> Up"
             docker compose -f docker-compose.lork.yml up -d
 
-            echo "==> Healthcheck"
-            sleep 8
-            for i in $(seq 1 10); do
+            echo "==> Healthcheck (up to 2 min)"
+            sleep 10
+            for i in $(seq 1 24); do
               if curl -fsS http://127.0.0.1:9000/api/health > /dev/null; then
-                echo "Healthcheck OK"
+                echo "Healthcheck OK (attempt $i)"
                 break
               fi
-              [ "$i" -eq 10 ] && { echo "Healthcheck failed"; exit 1; }
-              sleep 3
+              [ "$i" -eq 24 ] && { echo "Healthcheck failed after 2 min"; exit 1; }
+              sleep 5
             done
 
             echo "==> Done"
