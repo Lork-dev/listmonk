@@ -455,6 +455,12 @@ export const getLang = async (lang) => http.get(
 
 export const logout = async () => http.post('/api/logout');
 
+export const aiGenerate = async (prompt) => http.post(
+  '/api/ai/generate',
+  { prompt },
+  { loading: models.campaigns },
+);
+
 export const deleteGCCampaignAnalytics = async (typ, beforeDate) => http.delete(
   `/api/maintenance/analytics/${typ}`,
   { loading: models.maintenance, params: { before_date: beforeDate } },

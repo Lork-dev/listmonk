@@ -70,7 +70,13 @@
 
                 <b-field :label="$t('campaigns.subject')" label-position="on-border">
                   <b-input :maxlength="5000" v-model="form.subject" name="subject" :disabled="!canEdit"
-                    :placeholder="$t('campaigns.subject')" required />
+                    :placeholder="$t('campaigns.subject')" required expanded />
+                  <p class="control">
+                    <b-button v-if="canEdit" @click="isAiModalOpen = true" type="is-light"
+                      icon-left="creation-outline" title="Сгенерировать с помощью AI">
+                      ✨ AI
+                    </b-button>
+                  </p>
                 </b-field>
 
                 <b-field :label="$t('campaigns.fromAddress')" label-position="on-border">
@@ -338,6 +344,32 @@
     <campaign-preview v-if="isPreviewingArchive" @close="onToggleArchivePreview" type="campaign" :id="data.id"
       :archive-meta="form.archiveMetaStr" :title="data.title" :content-type="data.contentType"
       :template-id="form.archiveTemplateId" is-post is-archive />
+    <!-- AI generation modal -->
+    <b-modal v-model="isAiModalOpen" has-modal-card trap-focus :destroy-on-hide="false" aria-role="dialog"
+      aria-modal>
+      <div class="modal-card" style="width: 520px">
+        <header class="modal-card-head">
+          <p class="modal-card-title">✨ Сгенерировать письмо с AI</p>
+        </header>
+        <section class="modal-card-body">
+          <b-field label="Опишите суть письма" label-position="on-border"
+            :message="aiError" :type="aiError ? 'is-danger' : ''">
+            <b-input v-model="aiPrompt" type="textarea" rows="4"
+              placeholder="Например: анонс новой функции — генератор лендингов за 30 секунд. Упомяни скидку 20% первые 3 дня."
+              :disabled="aiLoading" />
+          </b-field>
+        </section>
+        <footer class="modal-card-foot">
+          <b-button @click="onAiGenerate" type="is-primary" :loading="aiLoading"
+            :disabled="!aiPrompt.trim()">
+            Сгенерировать
+          </b-button>
+          <b-button @click="isAiModalOpen = false" :disabled="aiLoading">
+            Отмена
+          </b-button>
+        </footer>
+      </div>
+    </b-modal>
   </section>
 </template>
 
@@ -378,6 +410,7 @@ export default Vue.extend({
       isAttachFieldVisible: false,
 
       // AI generation
+      isAiModalOpen: false,
       aiPrompt: '',
       aiLoading: false,
       aiError: '',
@@ -426,6 +459,28 @@ export default Vue.extend({
   methods: {
     formatDateTime(s) {
       return dayjs(s).format('YYYY-MM-DD HH:mm');
+    },
+
+    async onAiGenerate() {
+      if (!this.aiPrompt.trim()) return;
+      this.aiLoading = true;
+      this.aiError = '';
+      try {
+        const data = await this.$api.aiGenerate(this.aiPrompt);
+        if (data.subject) this.form.subject = data.subject;
+        if (data.body) {
+          this.form.content.body = data.body;
+          if (this.form.content.contentType !== 'html') {
+            this.form.content.contentType = 'html';
+          }
+        }
+        this.isAiModalOpen = false;
+        this.aiPrompt = '';
+      } catch (e) {
+        this.aiError = e.response?.data?.message || 'Ошибка генерации';
+      } finally {
+        this.aiLoading = false;
+      }
     },
 
     onToggleArchivePreview() {
