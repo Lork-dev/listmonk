@@ -33,7 +33,7 @@ services:
       LISTMONK_db__database: listmonk
       LISTMONK_db__ssl_mode: disable
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
-    command: ["./listmonk", "--install", "--idempotent", "--yes", "--config", ""]
+    command: ["sh", "-c", "./listmonk --install --idempotent --yes && ./listmonk"]
 
 volumes:
   listmonk-db-data:
