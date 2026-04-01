@@ -116,7 +116,12 @@ jobs:
                 echo "Healthcheck OK (attempt $i)"
                 break
               fi
-              [ "$i" -eq 24 ] && { echo "Healthcheck failed after 2 min"; exit 1; }
+              if [ "$i" -eq 24 ]; then
+                echo "==> Container logs (last 50 lines):"
+                docker compose -f docker-compose.lork.yml logs --tail=50 listmonk || true
+                echo "Healthcheck failed after 2 min"
+                exit 1
+              fi
               sleep 5
             done
 
